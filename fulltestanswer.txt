@@ -1,0 +1,329 @@
+“第一部分是 dbconn + curd + curd_select  用的是SQLAlchemy方法”
+“第二部分是 pymysql + pymysql_crud 用的是PyMySQL的方法”
+"此文档仅用来记录这两种方法的测试结果"
+
+MariaDB [(none)]> CREATE DATABASE wow DEFAULT CHARSET utf8;
+Query OK, 1 row affected (0.00 sec)
+
+MariaDB [(none)]> grant all on *.* to root@'%' identified by '123456';
+Query OK, 0 rows affected (0.00 sec)
+
+MariaDB [(none)]> show databases;
++--------------------+
+| Database           |
++--------------------+
+| information_schema |
+| mysql              |
+| wow            |
+| performance_schema |
+| test               |
++--------------------+
+5 rows in set (0.00 sec)
+
+MariaDB [wow]> show tables;
++-------------------+
+| Tables_in_wow |
++-------------------+
+| department        |
+| employees         |
+| salary            |
++-------------------+
+3 rows in set (0.00 sec)
+
+MariaDB [wow]> select * from department;
++--------+-----------+
+| dep_id | dep_name  |
++--------+-----------+
+|      1 | 人事部    |
+|      2 | 财务部    |
+|      3 | 运维部    |
+|      4 | 开发部    |
+|      5 | 测试部    |
+|      6 | 市场部    |
++--------+-----------+
+6 rows in set (0.00 sec)
+
+
+
+
+MariaDB [wow]> select * from employees;
++--------+-----------+------------+-------------+--------+
+| emp_id | emp_name  | birth_date | email       | dep_id |
++--------+-----------+------------+-------------+--------+
+|      1 | 贾克斯    | 1986-06-06 | jax@163.com |      1 |
+|      2 | 剑圣      | 1988-10-06 | js@163.com  |      2 |
+|      3 | 盖伦      | 1989-03-06 | gl@163.com  |      3 |
+|      4 | 赵信      | 1990-06-06 | zx@163.com  |      4 |
++--------+-----------+------------+-------------+--------+
+4 rows in set (0.00 sec)
+
+********************************************************************************************************
+from dbconn import Session,Department,Employees,Salary
+
+session = Session()
+********************************************************************************************************
+# 类作为参数，得到是一个实例列表
+qset1 = session.query(Department)
+print(qset1)		# 此时，qset1只是一条sql语句
+# SELECT department.dep_id AS department_dep_id, department.dep_name AS department_dep_name
+# FROM department
+
+for dep in qset1:
+    print(dep.dep_id,dep.dep_name)
+SELECT department.dep_id AS department_dep_id, department.dep_name AS department_dep_name 
+FROM department
+1 人事部
+2 财务部
+3 运维部
+4 开发部
+5 测试部
+6 市场部
+********************************************************************************************************
+# 把类变量作为参数，得到是元组的列表
+qset2 = session.query(Employees.emp_name,Employees.email)
+print(qset2.all())      # all方法返回所有结果构成的列表
+# [('贾克斯', 'jax@163.com'), ('剑圣', 'js@163.com'), ('盖伦', 'gl@163.com'), ('赵信',com')]
+for item in qset2:
+    print(item)
+[('贾克斯', 'jax@163.com'), ('剑圣', 'js@163.com'), ('盖伦', 'gl@163.com'), ('赵信',com')]
+('贾克斯', 'jax@163.com')
+('剑圣', 'js@163.com')
+('盖伦', 'gl@163.com')
+('赵信', 'zx@163.com')
+********************************************************************************************************
+# 排序
+qset3 = session.query(Department).order_by(Department.dep_id)
+for dep in  qset3:
+    print(dep.dep_id,dep.dep_name)
+1 人事部
+2 财务部
+3 运维部
+4 开发部
+5 测试部
+6 市场部
+
+qset3 = session.query(Department).order_by(Department.dep_id)[1:3]
+for dep in  qset3:
+    print(dep.dep_id,dep.dep_name)
+2 财务部
+3 运维部
+********************************************************************************************************
+# 过滤，得到的结果有0或多项的列表
+qset4 = session.query(Department).filter(Department.dep_id == 3)
+print(qset4.all())
+[<dbconn.Department object at 0x7fb736a367f0>]
+
+qset4 = session.query(Department).filter(Department.dep_id == 3)
+print(qset4.all())
+for dep in qset4:
+    print(dep.dep_id,dep.dep_name)
+(wu1904) [root@room9pc01 pymysql]# python curd_select.py
+[<dbconn.Department object at 0x7ff8645957f0>]
+3 运维部
+
+qset4 = session.query(Department).filter(Department.dep_id <= 3)
+print(qset4.all())
+for dep in qset4:
+    print(dep.dep_id,dep.dep_name)
+[<dbconn.Department object at 0x7fd0b151d860>, <dbconn.Department object at 0x7fd0b151d940>, <dbconn.Department object at 0x7fd0b151da58>]
+1 人事部
+2 财务部
+3 运维部
+
+********************************************************************************************************
+# 过滤，可以书写多个条件
+qset5 = session.query(Department).filter(Department.dep_id>1,Department.dep_id<4)
+for dep in qset5:
+    print(dep.dep_id,dep.dep_name)
+
+2 财务部
+3 运维部
+
+********************************************************************************************************
+# 模糊查询
+qset6 = session.query(Employees).filter(Employees.email.like('%@163.com'))
+for emp in qset6:
+    print(emp.emp_name,emp.email)
+    
+贾克斯 jax@163.com
+剑圣 js@163.com
+盖伦 gl@163.com
+赵信 zx@163.com
+********************************************************************************************************
+qset7 = session.query(Department).filter(Department.dep_id.in_([1,3,6]))
+print(qset7.all())  # all返回列表
+[<dbconn.Department object at 0x7fcf0bf12550>, <dbconn.Department object at 0x7fcf0bf12940>, <dbconn.Department object at 0x7fcf0bf12a20>]
+print(qset7.first())    # 返回all列表中的第一项
+<dbconn.Department object at 0x7f5e51124828>
+dep = qset7.first()
+print(dep.dep_id,dep.dep_name)
+1 人事部
+
+********************************************************************************************************
+qset8 = session.query(Department).filter(Department.dep_id == 3)
+dep = qset8.one()
+print(dep.dep_id,dep.dep_name)
+3 运维部
+
+
+ # one要求返回一项,0或多都会报错
+qset8 = session.query(Department).filter(Department.dep_id == 33)
+qset8 = session.query(Department).filter(Department.dep_id >= 3)
+dep = qset8.one()
+print(dep.dep_id,dep.dep_name)
+
+会报错
+
+********************************************************************************************************
+# 多表查询
+# 如果先写的是Employees.emp_name.join的参数必须是Department
+qset9 = session.query(Employees.emp_name,Department.dep_name)
+qset9 = session.query(Employees.emp_name,Department.dep_name).join(Department)
+print(qset9.all())
+# [('贾克斯', '人事部'), ('剑圣', '财务部'), ('盖伦', '运维部'), ('赵信', '开发部')]
+
+# 如果先写的是Department.dep_name.join的参数必须是Employee
+qset9 = session.query(Employees.emp_name,Department.dep_name)
+qset9 = session.query(Department.dep_name,Employees.emp_name).join(Employees)
+print(qset9.all())
+# [('人事部', '贾克斯'), ('财务部', '剑圣'), ('运维部', '盖伦'), ('开发部', '赵信')]
+********************************************************************************************************
+# 修改，只要进行变量重新赋值即可
+qset10 = session.query(Department).filter(Department.dep_id==1)
+hr = qset10.one()
+hr.dep_name = '人力资源部'
+
+MariaDB [nsd1904]> select * from department;
++--------+-----------------+
+| dep_id | dep_name        |
++--------+-----------------+
+|      1 | 人力资源部      |
+
+********************************************************************************************************
+# 删除，先取出实例，再调用delete方法
+qset11 = session.query(Department).filter(Department.dep_id==6)
+market = qset11.one()
+session.delete(market)
+MariaDB [nsd1904]> select * from department;
++--------+-----------------+
+| dep_id | dep_name        |
++--------+-----------------+
+|      1 | 人力资源部      |
+|      2 | 财务部          |
+|      3 | 运维部          |
+|      4 | 开发部          |
+|      5 | 测试部          |
++--------+-----------------+
+5 rows in set (0.00 sec)
+********************************************************************************************************
+session.commit()
+session.close()
+********************************************************************************************************
+********************************************************************************************************
+
+py_mysql
+
+MariaDB [nsd1904]> CREATE DATABASE wud1994 DEFAULT CHARSET utf8;
+Query OK, 1 row affected (0.00 sec)
+
+
+MariaDB [wud1994]> show tables;
++-------------------+
+| Tables_in_wud1994 |
++-------------------+
+| departments       |
+| employees         |
+| salary            |
++-------------------+
+3 rows in set (0.00 sec)
+
+
+MariaDB [wud1994]> select * from departments;
++--------+-----------+
+| dep_id | dep_name  |
++--------+-----------+
+|      1 | 人事部    |
+|      2 | 财务部    |
+|      3 | 运维部    |
+|      4 | 开发部    |
+|      5 | 测试部    |
++--------+-----------+
+5 rows in set (0.00 sec)
+
+
+# 查询
+select1 = 'SELECT * FROM departments'
+cur.execute(select1)
+result1 = cur.fetchone()    # 取出一项
+result2 = cur.fetchmany(2)   # 取出两项
+result3 = cur.fetchall()    # 取出所有
+print(result1)
+print('*' * 50)
+print(result2)
+print('*' * 50)
+print(result3)
+(1, '人事部')
+**************************************************
+((2, '财务部'), (3, '运维部'))
+**************************************************
+((4, '开发部'), (5, '测试部'))
+
+# 移动游标
+select1 = 'SELECT * FROM departments ORDER BY dep_id'
+cur.execute(select1)
+cur.scroll(3)
+result1 = cur.fetchone()
+print(result1)
+print('*' * 50)
+cur.scroll(0,mode='absolute')
+result2 = cur.fetchone()
+print(result2)
+
+(4, '开发部')
+**************************************************
+(1, '人事部')
+
+
+# 修改
+update1 = 'UPDATE departments SET dep_name=%s WHERE dep_name = %s'
+cur.execute(update1,('人力资源部','人事部'))
+MariaDB [wud1994]> select * from departments;
++--------+-----------------+
+| dep_id | dep_name        |
++--------+-----------------+
+|      1 | 人力资源部      |
+
+# 删除
+delete1 = 'DELETE FROM departments WHERE dep_id=%s'
+cur.execute(delete1, (4,))      # 删除第四项
+
+MariaDB [wud1994]> select * from departments;
++--------+-----------------+
+| dep_id | dep_name        |
++--------+-----------------+
+|      1 | 人力资源部      |
+|      2 | 财务部          |
+|      3 | 运维部          |
+|      5 | 测试部          |
++--------+-----------------+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
